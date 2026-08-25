@@ -9,13 +9,14 @@ namespace ReservaAi.Controllers
     [ApiController]
     public class RoomsController : ControllerBase
     {
-        [HttpGet("api/rooms")]
+        [HttpGet("v1/rooms")]
         public async Task<IActionResult> GetAsync([FromServices] ReservaDataContext context)
         {
             try
             {
                 var rooms = await context.Rooms.ToListAsync();
-                return Ok(new ResultViewModel<List<Room>>(rooms));
+                var result = rooms.Select(RoomViewModel.FromRoom).ToList();
+                return Ok(new ResultViewModel<List<RoomViewModel>>(result));
             }
             catch (Exception ex)
             {
@@ -23,7 +24,7 @@ namespace ReservaAi.Controllers
             }
         }
 
-        [HttpGet("api/rooms/{id:int}")]
+        [HttpGet("v1/rooms/{id:int}")]
         public async Task<IActionResult> GetByIdAsync([FromServices] ReservaDataContext context, [FromRoute] int id)
         {
             try
@@ -33,7 +34,7 @@ namespace ReservaAi.Controllers
                 {
                     return NotFound(new ResultViewModel<string>("Room not found"));
                 }
-                return Ok(new ResultViewModel<Room>(room));
+                return Ok(new ResultViewModel<RoomViewModel>(RoomViewModel.FromRoom(room)));
             }
             catch (Exception ex)
             {
@@ -41,7 +42,7 @@ namespace ReservaAi.Controllers
             }
         }
 
-        [HttpPost("api/rooms")]
+        [HttpPost("v1/rooms")]
         public async Task<IActionResult> PostAsync([FromServices] ReservaDataContext context, [FromBody] EditorRoomViewModel model)
         {
             if (!ModelState.IsValid)
@@ -62,7 +63,7 @@ namespace ReservaAi.Controllers
                 await context.Rooms.AddAsync(room);
                 await context.SaveChangesAsync();
 
-                return Created($"api/rooms/{room.Id}", new ResultViewModel<Room>(room));
+                return Created($"/v1/rooms/{room.Id}", new ResultViewModel<RoomViewModel>(RoomViewModel.FromRoom(room)));
             }
             catch (Exception ex)
             {
@@ -70,15 +71,19 @@ namespace ReservaAi.Controllers
             }
         }
 
-        [HttpPut("api/rooms/{id:int}")]
+        [HttpPut("v1/rooms/{id:int}")]
         public async Task<IActionResult> PutAsync([FromServices] ReservaDataContext context, [FromBody] EditorRoomViewModel model, [FromRoute] int id)
         {
+            if (!ModelState.IsValid)
+            {
+                return BadRequest(new ResultViewModel<string>("Invalid model"));
+            }
             var room = await context.Rooms.FirstOrDefaultAsync(x => x.Id == id);
             try
             {
                 if(room == null)
                 {
-                    return NotFound(new ResultViewModel<Room>("Sala não encontrada."));
+                    return NotFound(new ResultViewModel<RoomViewModel>("Sala não encontrada."));
                 }
                 room.Name = model.Name;
                 room.Capacity = model.Capacity;
@@ -87,14 +92,14 @@ namespace ReservaAi.Controllers
 
                 await context.SaveChangesAsync();
 
-                return Ok(new ResultViewModel<Room>(room));
+                return Ok(new ResultViewModel<RoomViewModel>(RoomViewModel.FromRoom(room)));
             }
             catch (Exception ex)
             {
                 return BadRequest(new ResultViewModel<string>(ex.Message));
             }
         }
-        [HttpDelete("api/rooms/{id:int}")]
+        [HttpDelete("v1/rooms/{id:int}")]
         public async Task<IActionResult> DeleteAsync([FromServices] ReservaDataContext context, [FromRoute] int id)
         {
             var room = await context.Rooms.FirstOrDefaultAsync(x => x.Id == id);
@@ -102,12 +107,12 @@ namespace ReservaAi.Controllers
             {
                 if(room == null)
                 {
-                    return NotFound(new ResultViewModel<Room>("Sala não encontrada."));
+                    return NotFound(new ResultViewModel<RoomViewModel>("Sala não encontrada."));
                 }
                 context.Rooms.Remove(room);
                 await context.SaveChangesAsync();
 
-                return Ok(new ResultViewModel<Room>(room));
+                return Ok(new ResultViewModel<RoomViewModel>(RoomViewModel.FromRoom(room)));
             }
             catch (Exception ex)
             {
@@ -115,7 +120,7 @@ namespace ReservaAi.Controllers
             }
         }
 
-        [HttpGet("/api/rooms/available?start=&end=")]
+        [HttpGet("v1/rooms/available")]
         public async Task<IActionResult> GetAvailableRoomsAsync([FromServices] ReservaDataContext context, [FromQuery] DateTime start, [FromQuery] DateTime end)
         {
             try
@@ -123,7 +128,8 @@ namespace ReservaAi.Controllers
                 var availableRooms = await context.Rooms
                     .Where(r => !context.Reservations.Any(res => res.RoomId == r.Id && res.StartTime < end && res.FinishTime > start))
                     .ToListAsync();
-                return Ok(new ResultViewModel<List<Room>>(availableRooms));
+                var result = availableRooms.Select(RoomViewModel.FromRoom).ToList();
+                return Ok(new ResultViewModel<List<RoomViewModel>>(result));
             }
             catch (Exception ex)
             {
